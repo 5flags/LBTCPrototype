@@ -23,7 +23,25 @@ namespace LBTCPrototype.LBTCAPI
             _clientId = clientId;
             _secret = secret;
 
-            _authorizeResponse = Authorize();
+            AuthorizeIfNecessary();
+        }
+
+        private void AuthorizeIfNecessary()
+        {
+            if (Properties.Settings.Default.AuthorizeResponse_AccessToken == null ||
+                Properties.Settings.Default.AuthorizeResponse_AccessTokenExpiryTime < DateTime.Now)
+            {
+                var response = Authorize();
+
+                Properties.Settings.Default.AuthorizeResponse_AccessToken = response.access_token;
+                Properties.Settings.Default.AuthorizeResponse_AccessTokenExpiryTime = DateTime.Now +
+                                                                                      TimeSpan.FromSeconds(
+                                                                                          response.expires_in);
+                Properties.Settings.Default.AuthorizeResponse_AccessTokenRefreshToken = response.refresh_token;
+                Properties.Settings.Default.AuthorizeResponse_AccessTokenScope = response.scope;
+
+                Properties.Settings.Default.Save();
+            }
         }
 
         private AuthorizeResponse Authorize()
@@ -49,6 +67,34 @@ namespace LBTCPrototype.LBTCAPI
                 var twilioException = new ApplicationException(message, response.ErrorException);
                 throw twilioException;
             }
+            return response.Data;
+        }
+
+        public MyselfResponse GetMeData()
+        {
+            var client = new RestClient();
+            client.BaseUrl = BaseUrl;
+
+            var request = new RestRequest("/api/myself/", Method.POST);
+
+            request.AddParameter("access_token", Properties.Settings.Default.AuthorizeResponse_AccessToken);
+
+            var response = client.Execute<MyselfResponse>(request);
+
+            return response.Data;
+        }
+
+        public AdsResponse GetAds()
+        {
+            var client = new RestClient();
+            client.BaseUrl = BaseUrl;
+
+            var request = new RestRequest("/api/ads/", Method.POST);
+
+            request.AddParameter("access_token", Properties.Settings.Default.AuthorizeResponse_AccessToken);
+
+            var response = client.Execute<AdsResponse>(request);
+
             return response.Data;
         }
     }
